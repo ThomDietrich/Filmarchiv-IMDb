@@ -8,7 +8,7 @@ import re
 import fileinput
 import glob
 import shutil
-from imdb import IMDb# , helpers
+from imdb import IMDb, helpers
 
 
 ia = IMDb()
@@ -18,74 +18,27 @@ ia = IMDb()
 #print ia.search_movie('500 days of summe')
 
 
-root = r"/srv/Film/Filmarchiv"
-destroot = r"/srv/Film/FilmarchivSortierung"
+root = r"/mnt/Filmarchiv".rstrip("/")
+root_SrcFolder = "Archiv".strip("/")
+root_DestFolder = "Sortierung".strip("/")  #ACHTUNG!! Ordner wird komplett geleert!
 
+source = os.path.join(root, root_SrcFolder)
+destination = os.path.join(root, root_DestFolder)
 
-actor_ids =["0000134",
-            "0000199",
-            "0000163",
-            "0000158",
-            "0000093",
-            "0000243",
-            "0000432",
-            "0000126",
-            "0000142",
-            "0000138",
-            "0000154",
-            "0000168",
-            "0000169",
-            "0000228",
-            "0000115",
-            "0000151",
-            "0000128",
-            "0000246",
-            "0000136",
-            "0000129",
-            "0005132",
-            "0000288",
-            "0000123",
-            "0000152",
-            "0000148",
-            "0000354",
-            "0000553",
-            "0000226",
-            "0000245",
-            "0000206",
-            "0000237",
-            "0817881",
-            "0001352",
-            "0001774",
-            "0005227",
-            "0001293",
-            "0416673",
-            "0124930",
-            "0001191",
-            "0004874",
-            "0908094",
-            "0000210",
-            "0000244",
-            "0000569",
-            "0000235",
-            "0000201",
-            "0000173",
-            "0000149",
-            "0424060",
-            "0000193",
-            "0000250",
-            "0461136",
-            "0001401",
-            "0000098",
-            "0000932",
-            "0000139",
-            "0005476",
-            "0005028",
-            "0000113",
-            "0004695",
-            "0479471",
-            "0005346"]
-
+actor_ids =[
+            "0000093", "0000098", "0000113", "0000115", "0000123", "0000126", "0000128", "0000129",
+            "0000136", "0000138", "0000139", "0000142", "0000148", "0000149", "0000151", "0000152",
+            "0000154", "0000158", "0000163", "0000168", "0000169", "0000173", "0000193", "0000199",
+            "0000201", "0000206", "0000210", "0000226", "0000228", "0000235", "0000237", "0000243",
+            "0000244", "0000245", "0000246", "0000250", "0000288", "0000354", "0000432", "0000553",
+            "0000569", "0000932", "0001191", "0001293", "0001352", "0001401", "0001774", "0004695",
+            "0004874", "0005028", "0005132", "0005227", "0005346", "0005476", "0124930", "0416673",
+            "0424060", "0461136", "0479471", "0817881", "0908094", "0000134"
+            ]
 actor_objects = list()
+
+genres = ["Action", "Animation", "Comedy", "Drama", "Family", "Fantasy", "Horror", "Mystery", "Romance", "Sci-Fi", "Thriller", "War", "Western"]
+
 
 def getActorObjects():
     for id in actor_ids:
@@ -242,10 +195,11 @@ def processFolder(folder):
         maybeid = findImdbIDfromName(folder)
         if maybeid:
             print "Vorschlag:   " + maybeid + " http://www.imdb.de/title/tt" + maybeid
-            #germanaka = helpers.getAKAsInLanguage(ia.get_movie(maybeid),"German")
-            #if len(germanaka) > 0:
-            #    print "Imdb Deutsch:  " + germanaka[0]
+            germanaka = helpers.getAKAsInLanguage(ia.get_movie(maybeid),"German")
+            if len(germanaka) > 0:
+                print "IMDb Deutsch:  " + germanaka[0]
             print ia.get_movie(maybeid).summary()
+            print ""
         else:
             print Fore.CYAN + "kein Vorschlag gefunden" + Fore.RESET
         id = raw_input('Bitte IMDb ID oder Link eingeben, "v" für Vorschlag, "" für Überspringen: ')
@@ -258,161 +212,163 @@ def processFolder(folder):
             return None
         writeIDtoURLfile(folder,id)
     movie = ia.get_movie(id)
-    #print movie.summary()
-    print "Imdb Title:    " + movie['long imdb title']
-    #germanaka = helpers.getAKAsInLanguage(movie,"German")
-    #if len(germanaka) > 0:
-    #    print "Imdb Deutsch:  " + germanaka[0] + " (" + str(movie['year']) + ")"
-    print "Imdb ID:       " + str(id)
+    print "IMDb Title:    " + movie['long imdb title']
+    germanaka = helpers.getAKAsInLanguage(movie,"German")
+    if len(germanaka) > 0:
+        print "IMDb Deutsch:  " + germanaka[0] + " (" + str(movie['year']) + ")"
+    print "IMDb ID:       " + str(id)
+    print "\n" + Fore.BLACK + Style.BRIGHT + movie.summary() + Style.RESET_ALL + "\n"
     return movie
 
+def hardlinkFolder(src, dest):
+    os.mkdir(dest)
+    for filename in os.listdir(src):
+        os.link(src + os.sep + filename, dest + os.sep + filename)
 
-
-
-def cleanDestRoot(dest):
+def cleanDestination(dest):
     if os.path.exists(dest):
         shutil.rmtree(dest)
     os.mkdir(dest)
     print Fore.YELLOW + 'Zielverzeichnis geleert...' + Fore.RESET
 
 
+def LinkMovieByRules(src, dest, movie):
 
-
-genres = ["Action", "Animation", "Comedy", "Drama", "Family", "Fantasy", "Horror", "Mystery", "Romance", "Sci-Fi", "Thriller", "War", "Western"]
-skand_list = ["0418455", "0342492", "0329767", "0180748", "0339230", "0269389"]
-def LinkMovieByRules(src, movie):
-
-
-    foldertitle = os.path.basename(src)
+    destinationBase = root + os.sep + root_DestFolder
+    movieFolderTitle = os.path.basename(src)
     #print movie.keys()
-    #print "Imdb Votes:\t" + str(movie['votes'])
+    #print "IMDb Votes:\t" + str(movie['votes'])
     #print movie.summary()
     #germanaka = helpers.getAKAsInLanguage(movie,"German")
     #if len(germanaka) > 0:
-    #    print "Imdb Deutsch:  " + germanaka[0]
-    #print "Imdb Title:\t" + movie['title']
-    #print "Imdb Year:\t" + str(movie['year'])
-    #print "Imdb Rating:\t" + str(movie['rating'])
+    #    print "IMDb Deutsch:  " + germanaka[0]
+    #print "IMDb Title:\t" + movie['title']
+    #print "IMDb Year:\t" + str(movie['year'])
+    #print "IMDb Rating:\t" + str(movie['rating'])
     #print movie['cast'][0:3]
 
     if (True):
-        destsubdir = destroot + os.sep + "A-Z"
-        if not os.path.exists(destsubdir):
-            os.makedirs(destsubdir)
-        os.symlink(folder, destsubdir + os.sep + foldertitle)
+        destSubdir = destinationBase + os.sep + "A-Z"
+        if not os.path.exists(destSubdir):
+            os.makedirs(destSubdir)
+        hardlinkFolder(src, destSubdir + os.sep + movieFolderTitle)
 
-    if movie['year'] <= 1970:
-        destsubdir = destroot + os.sep + "Jahr" + os.sep + "1900-1970"
-        if not os.path.exists(destsubdir):
-            os.makedirs(destsubdir)
-        os.symlink(folder, destsubdir + os.sep + foldertitle)
-        print Fore.YELLOW + "--> " + destsubdir + Fore.RESET
-    if movie['year'] in range(1971, 1991):
-        destsubdir = destroot + os.sep + "Jahr" + os.sep + "1971-1990"
-        if not os.path.exists(destsubdir):
-            os.makedirs(destsubdir)
-        os.symlink(folder, destsubdir + os.sep + foldertitle)
-        print Fore.YELLOW + "--> " + destsubdir + Fore.RESET
-    for year in range(1991, 2020):
-        if movie['year'] == year:
-            destsubdir = destroot + os.sep + "Jahr" + os.sep + str(year)
-            if not os.path.exists(destsubdir):
-                os.makedirs(destsubdir)
-            os.symlink(folder, destsubdir + os.sep + foldertitle)
-            print Fore.YELLOW + "--> " + destsubdir + Fore.RESET
+    if (True):
+        if movie['year'] <= 1970:
+            destSubdir = destinationBase + os.sep + "Jahr" + os.sep + "1900-1970"
+            if not os.path.exists(destSubdir):
+                os.makedirs(destSubdir)
+            hardlinkFolder(src, destSubdir + os.sep + movieFolderTitle)
+            print Fore.YELLOW + "hardlink --> " + destSubdir + Fore.RESET
+        if movie['year'] in range(1971, 1991):
+            destSubdir = destinationBase + os.sep + "Jahr" + os.sep + "1971-1990"
+            if not os.path.exists(destSubdir):
+                os.makedirs(destSubdir)
+            hardlinkFolder(src, destSubdir + os.sep + movieFolderTitle)
+            print Fore.YELLOW + "hardlink --> " + destSubdir + Fore.RESET
+        for year in range(1991, 2020):
+            if movie['year'] == year:
+                destSubdir = destinationBase + os.sep + "Jahr" + os.sep + str(year)
+                if not os.path.exists(destSubdir):
+                    os.makedirs(destSubdir)
+                hardlinkFolder(src, destSubdir + os.sep + movieFolderTitle)
+                print Fore.YELLOW + "hardlink --> " + destSubdir + Fore.RESET
 
+    if (True):
+        try:
+            for genre in genres:
+                if genre in movie['genres']:
+                    destSubdir = destinationBase + os.sep + "Genre" + os.sep + genre
+                    if not os.path.exists(destSubdir):
+                        os.makedirs(destSubdir)
+                    hardlinkFolder(src, destSubdir + os.sep + movieFolderTitle)
+                    print Fore.YELLOW + "hardlink --> " + destSubdir + Fore.RESET
+        except KeyError, e:
+            print Fore.MAGENTA + "keine Genres verfügbar: " + str(e) + Fore.RESET
 
-    try:
-        for genre in genres:
-            if genre in movie['genres']:
-                destsubdir = destroot + os.sep + "Genre" + os.sep + genre
-                if not os.path.exists(destsubdir):
-                    os.makedirs(destsubdir)
-                os.symlink(folder, destsubdir + os.sep + foldertitle)
-                print Fore.YELLOW + "--> " + destsubdir + Fore.RESET
-    except KeyError, e:
-        print Fore.MAGENTA + "keine Genres verfügbar: " + str(e) + Fore.RESET
+    if (True):
+        try:
+            destSubdir = destinationBase + os.sep + "IMDb Bewertung"
+            if not os.path.exists(destSubdir):
+                os.makedirs(destSubdir)
+            hardlinkFolder(src, destSubdir + os.sep + "(" + str(movie['rating']) + ")  " + movieFolderTitle)
+            #print Fore.YELLOW + "hardlink --> " + destSubdir + Fore.RESET
+        except KeyError, e:
+            print Fore.MAGENTA + "kein Rating gefunden: " + str(e) + Fore.RESET
 
-
-    try:
-        destsubdir = destroot + os.sep + "IMDb Bewertung"
-        if not os.path.exists(destsubdir):
-            os.makedirs(destsubdir)
-        os.symlink(folder, destsubdir + os.sep + "(" + str(movie['rating']) + ")  " + foldertitle)
-        #print Fore.YELLOW + "--> " + destsubdir + Fore.RESET
-    except KeyError, e:
-        print Fore.MAGENTA + "kein Rating gefunden: " + str(e) + Fore.RESET
-
-    try:
-        destsubdir = destroot + os.sep + "IMDb Votes"
-        if not os.path.exists(destsubdir):
-            os.makedirs(destsubdir)
-        votesstr = str(movie['votes'])
-        votesstr = '0'*(6 - len(votesstr)) + votesstr
-        os.symlink(folder, destsubdir + os.sep + votesstr + " - " + foldertitle)
-        #print Fore.YELLOW + "--> " + destsubdir + Fore.RESET
-    except KeyError, e:
-        print Fore.MAGENTA + "keine Votes gefunden: " + str(e) + Fore.RESET
-
-
-    try:
-        if movie['countries'][0] == "Germany" and movie['languages'][0] == "German":
-            destsubdir = destroot + os.sep + "Land" + os.sep + "Deutschland"
-            if not os.path.exists(destsubdir):
-                os.makedirs(destsubdir)
-            os.symlink(folder, destsubdir + os.sep + foldertitle)
-            print Fore.YELLOW + "--> " + destsubdir + Fore.RESET
-        elif movie['countries'][0] == "France" and movie['languages'][0] == "French":
-            destsubdir = destroot + os.sep + "Land" + os.sep + "Frankreich"
-            if not os.path.exists(destsubdir):
-                os.makedirs(destsubdir)
-            os.symlink(folder, destsubdir + os.sep + foldertitle)
-            print Fore.YELLOW + "--> " + destsubdir + Fore.RESET
-        elif (movie['countries'][0] == "Denmark" and movie['languages'][0] == "Danish") or\
-             (movie['countries'][0] == "Norway" and movie['languages'][0] == "Norwegian"):
-            destsubdir = destroot + os.sep + "Land" + os.sep + "Skandinavien"
-            if not os.path.exists(destsubdir):
-                os.makedirs(destsubdir)
-            os.symlink(folder, destsubdir + os.sep + foldertitle)
-            print Fore.YELLOW + "--> " + destsubdir + Fore.RESET
-    except KeyError, e:
-        print Fore.MAGENTA + "keine Languages gefunden: " + str(e) + Fore.RESET
-    except IndexError, e:
-        print Fore.MAGENTA + "keine Languages gefunden: " + str(e) + Fore.RESET
+        try:
+            destSubdir = destinationBase + os.sep + "IMDb Votes"
+            if not os.path.exists(destSubdir):
+                os.makedirs(destSubdir)
+            votesstr = str(movie['votes'])
+            votesstr = '0'*(6 - len(votesstr)) + votesstr
+            hardlinkFolder(src, destSubdir + os.sep + votesstr + " - " + movieFolderTitle)
+            #print Fore.YELLOW + "hardlink --> " + destSubdir + Fore.RESET
+        except KeyError, e:
+            print Fore.MAGENTA + "keine Votes gefunden: " + str(e) + Fore.RESET
 
 
-    for actor in actor_objects:
-        if actor in movie:
-            destsubdir = destroot + os.sep + "Schauspieler" + os.sep + actor['name']
-            if not os.path.exists(destsubdir):
-                os.makedirs(destsubdir)
-                writeActorIDtoURLfile(destsubdir, actor)
-            try:
-                os.symlink(folder, destsubdir + os.sep + foldertitle)
-                print Fore.YELLOW + "--> " + destsubdir + Fore.RESET
-            except UnicodeDecodeError, e:
-                print Fore.RED + "IMDbPY Error(?) " + str(e) + Fore.RESET
+    if (True):
+        try:
+            if movie['countries'][0] == "Germany" and movie['languages'][0] == "German":
+                destSubdir = destinationBase + os.sep + "Land" + os.sep + "Deutschland"
+                if not os.path.exists(destSubdir):
+                    os.makedirs(destSubdir)
+                hardlinkFolder(src, destSubdir + os.sep + movieFolderTitle)
+                print Fore.YELLOW + "hardlink --> " + destSubdir + Fore.RESET
+            elif movie['countries'][0] == "France" and movie['languages'][0] == "French":
+                destSubdir = destinationBase + os.sep + "Land" + os.sep + "Frankreich"
+                if not os.path.exists(destSubdir):
+                    os.makedirs(destSubdir)
+                hardlinkFolder(src, destSubdir + os.sep + movieFolderTitle)
+                print Fore.YELLOW + "hardlink --> " + destSubdir + Fore.RESET
+            elif (movie['countries'][0] == "Denmark" and movie['languages'][0] == "Danish") or\
+                 (movie['countries'][0] == "Norway" and movie['languages'][0] == "Norwegian"):
+                destSubdir = destinationBase + os.sep + "Land" + os.sep + "Skandinavien"
+                if not os.path.exists(destSubdir):
+                    os.makedirs(destSubdir)
+                hardlinkFolder(src, destSubdir + os.sep + movieFolderTitle)
+                print Fore.YELLOW + "hardlink --> " + destSubdir + Fore.RESET
+        except KeyError, e:
+            print Fore.MAGENTA + "keine Languages gefunden: " + str(e) + Fore.RESET
+        except IndexError, e:
+            print Fore.MAGENTA + "keine Languages gefunden: " + str(e) + Fore.RESET
+
+
+    if (True):
+        for actor in actor_objects:
+            if actor in movie:
+                destSubdir = destinationBase + os.sep + "Schauspieler" + os.sep + actor['name']
+                if not os.path.exists(destSubdir):
+                    os.makedirs(destSubdir)
+                    writeActorIDtoURLfile(destSubdir, actor)
+                try:
+                    hardlinkFolder(src, destSubdir + os.sep + movieFolderTitle)
+                    print Fore.YELLOW + "hardlink --> " + destSubdir + Fore.RESET
+                except UnicodeDecodeError, e:
+                    print Fore.RED + "IMDbPY Error(?) " + str(e) + Fore.RESET
 
 
 
 
 
-cleanDestRoot(destroot)
-getActorObjects()
-for folder in sorted(glob.glob(root + os.sep + "*")):
-    movie = processFolder(folder)
+cleanDestination(destination)
+#getActorObjects()
+for sourceSubFolder in sorted(glob.glob(source + os.sep + "*")):
+    movie = processFolder(sourceSubFolder)
 
-    m = re.search(r".*\(\d{4}\)$", folder)
+    #TODO auslagern
+    m = re.search(r".* \(\d{4}\)$", sourceSubFolder)
     if (m is None):
         new = raw_input('Ordner hat keinen gültigen Namen. Bitte neune Name eingeben oder mit "" belassen: ')
         if new != "":
-            newfolder = os.path.dirname(folder) + os.sep + new
+            newSubFolder = os.path.dirname(sourceSubFolder) + os.sep + new
             try:
-                os.rename(folder, newfolder)
-                print Fore.CYAN + "erfolgreich umbenannt: " + folder + " --> " + newfolder + Fore.RESET
-                folder = newfolder
+                os.rename(sourceSubFolder, newSubFolder)
+                print Fore.CYAN + "erfolgreich umbenannt: " + sourceSubFolder + " --> " + newSubFolder + Fore.RESET
+                sourceSubFolder = newSubFolder
             except OSError:
-                print Fore.RED + "Fehler beim Umbenennen: " + folder + " --> " + newfolder + Fore.RESET
+                print Fore.RED + "Fehler beim Umbenennen: " + sourceSubFolder + " --> " + newSubFolder + Fore.RESET
                 pass
 
-    if movie: LinkMovieByRules(folder, movie)
+    if movie: LinkMovieByRules(sourceSubFolder, destination, movie)
