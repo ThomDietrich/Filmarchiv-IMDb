@@ -198,11 +198,10 @@ def processFolder(folder):
             germanaka = helpers.getAKAsInLanguage(ia.get_movie(maybeid),"German")
             if len(germanaka) > 0:
                 print "IMDb Deutsch:  " + germanaka[0]
-            print ia.get_movie(maybeid).summary()
-            print ""
+            print "\n" + Fore.BLACK + Style.BRIGHT + ia.get_movie(maybeid).summary() + Style.RESET_ALL + "\n"
         else:
             print Fore.CYAN + "kein Vorschlag gefunden" + Fore.RESET
-        id = raw_input('Bitte IMDb ID oder Link eingeben, "v" für Vorschlag, "" für Überspringen: ')
+        id = raw_input('Bitte IMDb ID oder Link eingeben, "v" für Vorschlag, "" für Überspringen:\a ')
         if id == "v": id = maybeid
         m = re.search(r".*imdb.*tt(\d*)", id)
         if (m is not None):
@@ -220,10 +219,13 @@ def processFolder(folder):
     print "\n" + Fore.BLACK + Style.BRIGHT + movie.summary() + Style.RESET_ALL + "\n"
     return movie
 
-def hardlinkFolder(src, dest):
-    os.mkdir(dest)
-    for filename in os.listdir(src):
-        os.link(src + os.sep + filename, dest + os.sep + filename)
+def hardlinkFolder(srcFolderPath, destFolderPath):
+    os.mkdir(destFolderPath)
+    (_, directories, filenames) = os.walk(srcFolderPath).next()
+    for filename in filenames:
+        os.link(os.path.join(srcFolderPath, filename), os.path.join(destFolderPath, filename))
+    for directory in directories:
+        hardlinkFolder(os.path.join(srcFolderPath, directory), os.path.join(destFolderPath, directory))
 
 def cleanDestination(dest):
     if os.path.exists(dest):
@@ -292,7 +294,7 @@ def LinkMovieByRules(src, dest, movie):
             if not os.path.exists(destSubdir):
                 os.makedirs(destSubdir)
             hardlinkFolder(src, destSubdir + os.sep + "(" + str(movie['rating']) + ")  " + movieFolderTitle)
-            #print Fore.YELLOW + "hardlink --> " + destSubdir + Fore.RESET
+            print Fore.YELLOW + "hardlink --> " + destSubdir + os.sep + "(" + str(movie['rating']) + ")" + Fore.RESET
         except KeyError, e:
             print Fore.MAGENTA + "kein Rating gefunden: " + str(e) + Fore.RESET
 
@@ -303,7 +305,7 @@ def LinkMovieByRules(src, dest, movie):
             votesstr = str(movie['votes'])
             votesstr = '0'*(6 - len(votesstr)) + votesstr
             hardlinkFolder(src, destSubdir + os.sep + votesstr + " - " + movieFolderTitle)
-            #print Fore.YELLOW + "hardlink --> " + destSubdir + Fore.RESET
+            print Fore.YELLOW + "hardlink --> " + destSubdir + os.sep + votesstr + Fore.RESET
         except KeyError, e:
             print Fore.MAGENTA + "keine Votes gefunden: " + str(e) + Fore.RESET
 
@@ -323,6 +325,7 @@ def LinkMovieByRules(src, dest, movie):
                 hardlinkFolder(src, destSubdir + os.sep + movieFolderTitle)
                 print Fore.YELLOW + "hardlink --> " + destSubdir + Fore.RESET
             elif (movie['countries'][0] == "Denmark" and movie['languages'][0] == "Danish") or\
+                 (movie['countries'][0] == "Sweden" and movie['languages'][0] == "Swedish") or\
                  (movie['countries'][0] == "Norway" and movie['languages'][0] == "Norwegian"):
                 destSubdir = destinationBase + os.sep + "Land" + os.sep + "Skandinavien"
                 if not os.path.exists(destSubdir):
@@ -360,7 +363,7 @@ for sourceSubFolder in sorted(glob.glob(source + os.sep + "*")):
     #TODO auslagern
     m = re.search(r".* \(\d{4}\)$", sourceSubFolder)
     if (m is None):
-        new = raw_input('Ordner hat keinen gültigen Namen. Bitte neune Name eingeben oder mit "" belassen: ')
+        new = raw_input('Ordner hat keinen gültigen Namen. Bitte neune Name eingeben oder mit "" belassen:\a ')
         if new != "":
             newSubFolder = os.path.dirname(sourceSubFolder) + os.sep + new
             try:
